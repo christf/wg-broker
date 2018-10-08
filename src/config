@@ -6,5 +6,6 @@ MTU=1374		# MTU of VPN in this network
 WG="wg"			# wireguard command
 WAN="br-wan"		# accepting inbound wireguard connections on this interface
 MAXCONNECTIONS=150	# allow MAXCONNECTIONS concurrent vpn connections
+PRIVATEKEY=/etc/wg-broker/secret	# this file contains the secret key
 
 

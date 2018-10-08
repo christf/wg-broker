@@ -4,16 +4,18 @@
 # Copyright (C) Christof Schulze <christof@christofschulze.com>. All Rights Reserved.
 #
 
-. /etc/wg-broker.conf
+if [[ -f /etc/wg-broker/config ]]; then
+  . /etc/wg-broker/config
+else
+  echo "No such file /etc/wg-broker/config. Exiting" >&2 
+  exit 1
+fi
 
-[[ -f /etc/wg-broker/config ]] && . /etc/wg-broker/config
 
-[[ -f /etc/wg-broker/secret ]] || {
-  echo expecting to find wg secret key in /etc/wg-broker/secret >&2
+[[ -f $PRIVATEKEY ]] || {
+  echo expecting to find wg secret key in $PRIVATEKEY >&2
   exit 1
 }
-
-PRIVATEKEY=/etc/wg-broker/secret
 
 set -x
 get_wg_interfaces() {
