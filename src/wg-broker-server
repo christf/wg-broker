@@ -11,15 +11,28 @@ else
   exit 1
 fi
 
+EXITING=""
 
 [[ -f $PRIVATEKEY ]] || {
   echo expecting to find wg secret key in $PRIVATEKEY >&2
   exit 1
 }
-
 set -x
+
+cleanup() {
+  EXITING=true
+  rm -f /tmp/wg-broker
+  for i in $(get_wg_interfaces)
+  do
+    del_interface ${i}
+  done
+  exit 0
+}
+
+trap cleanup exit
+
 get_wg_interfaces() {
-    $WG show interfaces |grep babel-wg
+    $WG show interfaces |sed 's/ /\n/g'|grep babel-wg-
 }
 
 get_connection_count() {
@@ -176,7 +189,7 @@ handle_connection() {
 }
 
 # TODO prettify this
-iptables -L -v|grep dpt:$STARTPORT|grep tcp|grep $WAN |grep -q ACCEPT || iptables -A INPUT -p tcp --dport $STARTPORT -j ACCEPT
+iptables -L -v|grep dpt:$STARTPORT|grep tcp|grep $WAN |grep -q ACCEPT || iptables -A INPUT -i $WAN -p tcp --dport $STARTPORT -j ACCEPT
 iptables -L -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || iptables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
 ip6tables -L -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || ip6tables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
 
@@ -187,19 +200,19 @@ rm -f /var/lock/${0##*/}
 {
     while true
     do
-	(
-	flock -n 42
 	for i in $(get_wg_interfaces)
 	do
 	    prune_ifs $i
 	done
-	) 42>/var/lock/${0##*/}
 	sleep 300
     done
 } &
 
-while true
+{
+while [[ -z $EXITING ]]
 do
     cat /tmp/wg-broker | handle_connection | nc -w 1 -l $BROKERPORT > /tmp/wg-broker
 done
+} &
 
+wait
