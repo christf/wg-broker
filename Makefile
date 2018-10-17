@@ -7,4 +7,4 @@ install:
 	install -m 0644 src/config $(DESTDIR)/etc/wg-broker/config
 
 deb:
-	checkinstall -D --fstrans=yes --maintainer="Christof Schulze \<christof@christofschulze.com\>" --requires="bash,netcat-openbsd,jq,iptables,socat,wireguard" --pkgname=wg-broker --pkgversion=1 --install=no --nodoc --pkgarch=all make install
+	checkinstall -D --fstrans=yes --maintainer="Christof Schulze \<christof@christofschulze.com\>" --requires="bash,netcat-openbsd,jq,iptables,socat,wireguard" --pkgname=wg-broker --pkgrelease=$(WGRELEASE) --pkgversion=$(WGVERSION) --install=no --nodoc --pkgarch=all make install
