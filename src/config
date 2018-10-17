@@ -7,5 +7,6 @@ WG="wg"			# wireguard command
 WAN="br-wan"		# accepting inbound wireguard connections on this interface
 MAXCONNECTIONS=150	# allow MAXCONNECTIONS concurrent vpn connections
 PRIVATEKEY=/etc/wg-broker/secret	# this file contains the secret key
+L3ROAMDSOCK=/var/run/l3roamd.sock	# this is the l3roamd socket
 
 

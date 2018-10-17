@@ -82,12 +82,14 @@ add_interface() {
     # ip6tables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
     # iptables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
     ip link set up dev $newdevice
+    echo add_meshif "$1" | socat - unix:$L3ROAMDSOCK
     echo interface $newdevice | timeout 0.2 nc ::1 $BABELPORT >/dev/null
 }
 
 del_interface() {
   ip link show "$1" >/dev/null 2>&1 && 
   {
+    echo del_meshif "$1" | socat - unix:$L3ROAMDSOCK
     ip link del "$1"
     echo flush interface $1 | timeout 0.2 nc ::1 $BABELPORT
   } >&2
