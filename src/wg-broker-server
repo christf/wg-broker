@@ -4,11 +4,16 @@
 # Copyright (C) Christof Schulze <christof@christofschulze.com>. All Rights Reserved.
 #
 
-if [[ -f /etc/wg-broker/config ]]; then
-  . /etc/wg-broker/config
-else
-  echo "No such file /etc/wg-broker/config. Exiting" >&2 
-  exit 1
+if [[ -z $WAN ]] || [[ -z $MAXCONNECTIONS ]] || [[ -z $BROKERPORT ]] ||
+   [[ -z $STARTPORT ]] || [[ -z $ENDPORT ]] || [[ -z $BABELPORT ]] || [[ -z $WG ]]
+   [[ -z $MTU ]] || [[ -z $PRIVATEKEY ]] || [[ -z $L3ROAMDSOCK ]]
+then
+  if [[ -f /etc/wg-broker/config ]]; then
+    . /etc/wg-broker/config
+  else
+    echo "No such file /etc/wg-broker/config. Exiting" >&2 
+    exit 1
+  fi
 fi
 
 EXITING=""
