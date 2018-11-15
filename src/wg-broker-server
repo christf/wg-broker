@@ -80,7 +80,8 @@ add_interface() {
 
     ip link add dev $newdevice type wireguard
     ip link set multicast on mtu $MTU dev $newdevice
-    ip a a fe80::1/64 dev $newdevice
+    devicenumber="${ifname##*-}"
+    ip a a fe80::${devicenumber}/64 dev $newdevice
 
     $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key endpoint $remoteip:$rport allowed-ips ::/0
     # ip6tables -A INPUT -i $newdevice -p udp --dport 6696 -j ACCEPT
