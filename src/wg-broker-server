@@ -4,6 +4,8 @@
 # Copyright (C) Christof Schulze <christof@christofschulze.com>. All Rights Reserved.
 #
 
+declare -A INACTIVE
+
 if [[ -z $WAN ]] || [[ -z $MAXCONNECTIONS ]] || [[ -z $BROKERPORT ]] ||
    [[ -z $STARTPORT ]] || [[ -z $ENDPORT ]] || [[ -z $BABELPORT ]] || [[ -z $WG ]]
    [[ -z $MTU ]] || [[ -z $PRIVATEKEY ]] || [[ -z $L3ROAMDSOCK ]]
@@ -78,10 +80,12 @@ add_interface() {
     local rport="$4"
     local remoteip="$5"
 
+    unset INACTIVE[$newdevice]
+
     ip link add dev $newdevice type wireguard
     ip link set multicast on mtu $MTU dev $newdevice
-    devicenumber="${ifname##*-}"
-    ip a a fe80::${devicenumber}/64 dev $newdevice
+    devicenumber=${ifname##*-}
+    ip a a fe80::$devicenumber/64 dev $newdevice
 
     $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key endpoint $remoteip:$rport allowed-ips ::/0
     # ip6tables -A INPUT -i $newdevice -p udp --dport 6696 -j ACCEPT
@@ -119,9 +123,13 @@ prune_ifs() {
     #	then
     lhandshake=$($WG show $interface latest-handshakes|awk '{print $2}')
 
-    if [[ $lhandshake -gt 0 ]] && [[ $(( $(date +%s) - lhandshake))  -gt 600 ]]
+    if  [[ $((lhandshake)) -eq 0 ]] && [[ $(( $(date +%s) - lhandshake)) -gt 600 ]] || 
+	    [[ $((lhandshake)) -eq 0 ]] && [[ ${INACTIVE[$interface]} = "1" ]]
     then
 	del_interface $interface
+    elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$interface]} ]]
+    then
+	    INACTIVE[$interface]=1
     fi
 
     if [[ $( $WG show $interface peers | wc -l ) -eq 0 ]]
