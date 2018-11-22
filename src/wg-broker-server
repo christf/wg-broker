@@ -3,8 +3,6 @@
 #
 # Copyright (C) Christof Schulze <christof@christofschulze.com>. All Rights Reserved.
 #
-#
-
 nic_basename="babel-wg-"
 
 declare -A INACTIVE
@@ -42,61 +40,61 @@ cleanup() {
 trap cleanup exit
 
 get_wg_interfaces() {
-  $WG show interfaces |sed 's/ /\n/g'|grep "${nic_basename}"
+    $WG show interfaces |sed 's/ /\n/g'|grep "${nic_basename}"
 }
 
 get_connection_count() {
-  interfaces=( $(get_wg_interfaces) )
-  echo ${#interface[@]}
+    interfaces=( $(get_wg_interfaces) )
+    echo ${#interface[@]}
 }
 
 get_port() {
-  $WG show ${1:-all} listen-port
+    $WG show ${1:-all} listen-port
 }
 
 port_is_assigned() {
-  get_port | grep -q "$1"
+    get_port | grep -q "$1"
 }
 
 find_free_port() {
-  local port=$((STARTPORT + $RANDOM%1000)) # adding RANDOM to  not assign ports sequentially and save some time in below loop
-  local sport=$port #
+    local port=$((STARTPORT + $RANDOM%1000)) # adding RANDOM to  not assign ports sequentially and save some time in below loop
+    local sport=$port #
 
-  while $(port_is_assigned $port)
-  do
-    port=$((port+1))
-    [[ $port -eq $ENDPORT ]] && port=$STARTPORT
-    [[ $port -eq $sport ]] &&
-    {
-      echo 0
-      return
-    }
-  done
+    while $(port_is_assigned $port)
+    do
+	port=$((port+1))
+	[[ $port -eq $ENDPORT ]] && port=$STARTPORT
+	[[ $port -eq $sport ]] &&
+	{
+	  echo 0
+	  return
+	}
+    done
 
-  echo $port
+    echo $port
 }
 
 add_interface() {
-  local newdevice="$1"
-  local freeport="$2"
-  local public_key="$3"
-  local rport="$4"
-  local remoteip="$5"
+    local newdevice="$1"
+    local freeport="$2"
+    local public_key="$3"
+    local rport="$4"
+    local remoteip="$5"
 
-  unset INACTIVE[$newdevice]
+    unset INACTIVE[$newdevice]
 
-  ip link add dev $newdevice type wireguard
-  ip link set multicast on mtu $MTU dev $newdevice
-  devicenumber=${ifname##*-}
-  ip a a fe80::$devicenumber/64 dev $newdevice
+    ip link add dev $newdevice type wireguard
+    ip link set multicast on mtu $MTU dev $newdevice
+    devicenumber=${ifname##*-}
+    ip a a fe80::$devicenumber/64 dev $newdevice
 
-  $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key endpoint $remoteip:$rport allowed-ips ::/0
-  # ip6tables -A INPUT -i $newdevice -p udp --dport 6696 -j ACCEPT
-  # ip6tables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
-  # iptables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
-  ip link set up dev $newdevice
-  echo add_meshif "$1" | socat - unix:$L3ROAMDSOCK
-  echo interface $newdevice | timeout 0.2 nc ::1 $BABELPORT >/dev/null
+    $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key endpoint $remoteip:$rport allowed-ips ::/0
+    # ip6tables -A INPUT -i $newdevice -p udp --dport 6696 -j ACCEPT
+    # ip6tables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
+    # iptables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
+    ip link set up dev $newdevice
+    echo add_meshif "$1" | socat - unix:$L3ROAMDSOCK
+    echo interface $newdevice | timeout 0.2 nc ::1 $BABELPORT >/dev/null
 }
 
 del_interface() {
@@ -109,135 +107,137 @@ del_interface() {
 }
 
 nic_namegen() {
-  local number=1
+    local number=1
 
-  while $(get_wg_interfaces|grep -q ${nic_basename}$number)
-  do
-    ((number+=1))
-  done
-  echo "${nic_basename}$number"
+    while $(get_wg_interfaces|grep -q "${nic_basename}$number")
+    do
+	((number+=1))
+    done
+    echo "${nic_basename}$number"
 }
 
 prune_ifs() {
-  local interface="$1"
+    local interface="$1"
 
-  # delete interface if its peers last_handshake is > 10 Minutes ago
-  lhandshake=$($WG show $interface latest-handshakes|awk '{print $2}')
-  age=$(($(date +%s)-lhandshake))
+    # delete interface if its peers last_handshake is > 10 Minutes ago
+    lhandshake=$($WG show $interface latest-handshakes|awk '{print $2}')
+    age=$(($(date +%s)-lhandshake))
 
-  if  (( (lhandshake > 0 && age > 600) || (lhandshake == 0 && "${INACTIVE[$interface]:-0}" == 1) ))
-  then
-    del_interface $interface
-    return
-  elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$interface]} ]]
-  then
-    INACTIVE[$interface]=1
-  fi
+    if  (( (lhandshake > 0 && age > 600) || (lhandshake == 0 && "${INACTIVE[$interface]:-0}" == 1) ))
+    then
+	del_interface $interface
+	return
+    elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$interface]} ]]
+    then
+	    INACTIVE[$interface]=1
+    fi
 }
 
 find_if() {
-  local peer="$1"
+    local peer="$1"
 
-  for i in $(get_wg_interfaces)
-  do
-    if wg show $i peers |grep -q $peer
-      then
-	  echo $i
-	  return
-      fi
-  done
+    for i in $(get_wg_interfaces)
+    do
+	if wg show $i peers |grep -q $peer
+	then
+	    echo $i
+	    return
+	fi
+    done
 }
 
 handle_connection() {
-  read -r REPLY
-  # echo read from client: $REPLY >&2
-  jq -r ".localport" <<< "$REPLY" >/dev/null 2>&1 || return 1
-  local pkey=$(jq -r ".pubkey" <<<"$REPLY")
+    read -r REPLY
+    echo read from client: $REPLY >&2
+    jq -r ".localport" <<< "$REPLY" >/dev/null 2>&1 || return 1
+    local pkey=$(jq -r ".pubkey" <<<"$REPLY")
 
-  local rport=$(jq -r ".localport" <<< "$REPLY")
+    local rport=$(jq -r ".localport" <<< "$REPLY")
 
-  if [[ -n $pkey ]] && [[ -n $rport ]]
-  then
-    [[ "$rport" =~ [0-9]+ ]] || 
-    {
-      echo invalid port >&2
-      return
-    }
-
-    if [[ ! $(base64 -d <<<"$pkey" 2>/dev/null |wc -c) -eq 32 ]]
+    if [[ -n $pkey ]] && [[ -n $rport ]]
     then
-      echo "invalid public key" >&2
-      return
+	[[ "$rport" =~ [0-9]+ ]] || 
+	{
+	    echo invalid port >&2
+	    return
+	}
+
+	if [[ ! $(base64 -d <<<"$pkey" 2>/dev/null |wc -c) -eq 32 ]]
+	then
+	    echo "invalid public key" >&2
+	    return
+	fi
+
+	ifname=$(find_if $pkey)
+
+	if [[ -z $ifname ]]
+	then
+	    port=$(find_free_port)
+	    if [[ $port -eq 0 ]]
+	    then
+	      # SERVER FULL
+	      echo "NOT handling the current connection - the server is full." >&2
+	    fi
+	    ifname=$(nic_namegen)
+	else
+	    port=$(wg show $ifname listen-port)
+	fi
+
+	success=0
+	if [[ $port -eq 0 ]] || [[ $(get_connection_count) -gt $MAXCONNECTIONS ]]
+	then
+	    response="{\"version\":1, \"error\": { \"code\":1, \"reason\": \"Server is not accepting additional connections\"} }"
+	else
+	    response="{\"version\":1, \"port\": $port}"
+	    success=1
+	fi
+
+	echo "working on $ifname, write to client: $response"  >&2
+	del_interface $ifname
+	[[ $success == "1" ]] && add_interface $ifname $port $pkey $rport 0.0.0.0
+	echo "$response"
     fi
-
-    ifname=$(find_if $pkey)
-
-    if [[ -z $ifname ]]
-    then
-      port=$(find_free_port)
-      if [[ $port -eq 0 ]]
-      then
-	# SERVER FULL
-	echo "NOT handling the current connection - the server is full." >&2
-      fi
-      ifname=$(nic_namegen)
-    else
-      port=$(wg show $ifname listen-port)
-    fi
-
-    success=0
-    if [[ $port -eq 0 ]] || [[ $(get_connection_count) -gt $MAXCONNECTIONS ]]
-    then
-      response="{\"version\":1, \"error\": { \"code\":1, \"reason\": \"Server is not accepting additional connections\"} }"
-    else
-      response="{\"version\":1, \"port\": $port}"
-      success=1
-    fi
-
-    echo "working on $ifname, write to client: $response"  >&2
-    del_interface $ifname
-    [[ $success == "1" ]] && add_interface $ifname $port $pkey $rport 0.0.0.0
-    echo "$response"
-  fi
 }
 
 allow_udp_on_wg_interfaces() {
   local port=$1
   nics=$(nic_namegen)
   nicbase=${nics%%-[0-9]*}
-  ip6tables -nL -v|grep udp |grep $nicbase|grep $port |grep -q ACCEPT || ip6tables -A INPUT -i ${nicbase}+ -p udp --dport $port -j ACCEPT
+  ip6tables -nL -v|grep udp |grep $nicbase|grep $port |grep -q ACCEPT ||
+  ip6tables -A INPUT -i ${nicbase}+ -p udp --dport $port -j ACCEPT-]
 }
 
-# allow udp port ranges and tcp-port for broker port
+
+# TODO prettify this
 iptables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || iptables -A INPUT -i $WAN -p tcp --dport $BROKERPORT -j ACCEPT
-iptables  -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || iptables  -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
+ip6tables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || ip6tables -A INPUT -i $WAN -p tcp --dport $BROKERPORT -j ACCEPT
+iptables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || iptables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
 ip6tables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || ip6tables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
 
 # allow l3roamd and mmfd on wireguard interfaces
 allow_udp_on_wg_interfaces 5523
 allow_udp_on_wg_interfaces 27275
 
-
 rm -f /tmp/wg-broker
 mkfifo /tmp/wg-broker
 rm -f /var/lock/${0##*/}
 
 {
-  while true
-  do
-    for i in $(get_wg_interfaces)
+    while true
     do
-      prune_ifs $i
+	for i in $(get_wg_interfaces)
+	do
+	    prune_ifs $i
+	done
+	sleep 300
     done
-    sleep 300
-  done
 } &
 
 {
-  while [[ -z $EXITING ]]
-  do
+while [[ -z $EXITING ]]
+do
     cat /tmp/wg-broker | handle_connection | nc -w 1 -l $BROKERPORT > /tmp/wg-broker
-  done
+done
 } &
 
 wait
