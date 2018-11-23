@@ -236,7 +236,14 @@ rm -f /var/lock/${0##*/}
 {
 while [[ -z $EXITING ]]
 do
-    cat /tmp/wg-broker | handle_connection | nc -w 1 -l $BROKERPORT > /tmp/wg-broker
+    cat /tmp/wg-broker | handle_connection | nc -4 -w 1 -l $BROKERPORT > /tmp/wg-broker
+done
+} &
+
+{
+while [[ -z $EXITING ]]
+do
+    cat /tmp/wg-broker | handle_connection | nc -6 -w 1 -l $BROKERPORT > /tmp/wg-broker
 done
 } &
 
