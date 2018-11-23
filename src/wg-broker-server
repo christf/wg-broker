@@ -147,6 +147,7 @@ find_if() {
 }
 
 handle_connection() {
+    family=$1
     read -r REPLY
     echo read from client: $REPLY >&2
     jq -r ".localport" <<< "$REPLY" >/dev/null 2>&1 || return 1
@@ -194,7 +195,10 @@ handle_connection() {
 
 	echo "working on $ifname, write to client: $response"  >&2
 	del_interface $ifname
-	[[ $success == "1" ]] && add_interface $ifname $port $pkey $rport 0.0.0.0
+
+	remote_ip=0.0.0.0
+	[[ "$family" == "6" ]] && remote_ip="::"
+	[[ $success == "1" ]] && add_interface $ifname $port $pkey $rport $remote_ip
 	echo "$response"
     fi
 }
@@ -203,7 +207,7 @@ allow_udp_on_wg_interfaces() {
   local port=$1
   nics=$(nic_namegen)
   nicbase=${nics%%-[0-9]*}
-  ip6tables -nL -v|grep udp | grep $nicbase | grep $port | grep -q ACCEPT || \
+  ip6tables -nL -v| grep udp | grep $nicbase | grep $port | grep -q ACCEPT || \
   ip6tables -A INPUT -i ${nicbase}+ -p udp --dport $port -j ACCEPT
 }
 
@@ -218,12 +222,14 @@ ip6tables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || ip6tables -A
 allow_udp_on_wg_interfaces 5523
 allow_udp_on_wg_interfaces 27275
 
-rm -f /tmp/wg-broker
-mkfifo /tmp/wg-broker
+rm -f /tmp/wg-broker4
+mkfifo /tmp/wg-broker4
+rm -f /tmp/wg-broker6
+mkfifo /tmp/wg-broker6
 rm -f /var/lock/${0##*/}
 
 {
-    while true
+    while [[ -z $EXITING ]]
     do
 	for i in $(get_wg_interfaces)
 	do
@@ -236,14 +242,14 @@ rm -f /var/lock/${0##*/}
 {
 while [[ -z $EXITING ]]
 do
-    cat /tmp/wg-broker | handle_connection | nc -4 -w 1 -l $BROKERPORT > /tmp/wg-broker
+    cat /tmp/wg-broker6 | handle_connection 6 | nc -6 -w 1 -l $BROKERPORT > /tmp/wg-broker6
 done
 } &
 
 {
 while [[ -z $EXITING ]]
 do
-    cat /tmp/wg-broker | handle_connection | nc -6 -w 1 -l $BROKERPORT > /tmp/wg-broker
+    cat /tmp/wg-broker4 | handle_connection 4 | nc -4 -w 1 -l $BROKERPORT > /tmp/wg-broker4
 done
 } &
 
