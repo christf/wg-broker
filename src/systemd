@@ -1,0 +1,16 @@
+[Unit]
+Description=wireguard
+Wants=basic.target
+After=basic.target network.target babeld.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/wg-broker-server
+KillMode=process
+Restart=always
+RestartSec=5s
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
+
