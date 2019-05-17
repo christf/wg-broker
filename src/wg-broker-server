@@ -218,9 +218,10 @@ ip6tables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || ip6t
 iptables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || iptables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
 ip6tables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || ip6tables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
 
-# allow l3roamd and mmfd on wireguard interfaces
+# allow babeld, l3roamd and mmfd on wireguard interfaces
 allow_udp_on_wg_interfaces 5523
 allow_udp_on_wg_interfaces 27275
+allow_udp_on_wg_interfaces 6696
 
 rm -f /tmp/wg-broker4
 mkfifo /tmp/wg-broker4
