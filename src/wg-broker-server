@@ -208,7 +208,7 @@ allow_udp_on_wg_interfaces() {
   nics=$(nic_namegen)
   nicbase=${nics%%-[0-9]*}
   ip6tables -nL -v| grep udp | grep $nicbase | grep $port | grep -q ACCEPT || \
-  ip6tables -A INPUT -i ${nicbase}+ -p udp --dport $port -j ACCEPT
+  ip6tables -I INPUT 1 -i ${nicbase}+ -p udp --dport $port -j ACCEPT
 }
 
 
