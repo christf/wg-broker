@@ -78,8 +78,6 @@ add_interface() {
     local newdevice="$1"
     local freeport="$2"
     local public_key="$3"
-    local rport="$4"
-    local remoteip="$5"
 
     unset INACTIVE[$newdevice]
 
@@ -88,7 +86,7 @@ add_interface() {
     devicenumber=${ifname##*-}
     ip a a fe80::$devicenumber/64 dev $newdevice
 
-    $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key endpoint $remoteip:$rport allowed-ips ::/0
+    $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key allowed-ips ::/0
     # ip6tables -A INPUT -i $newdevice -p udp --dport 6696 -j ACCEPT
     # ip6tables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
     # iptables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
@@ -150,19 +148,10 @@ handle_connection() {
     family=$1
     read -r REPLY
     echo read from client: $REPLY >&2
-    jq -r ".localport" <<< "$REPLY" >/dev/null 2>&1 || return 1
     local pkey=$(jq -r ".pubkey" <<<"$REPLY")
 
-    local rport=$(jq -r ".localport" <<< "$REPLY")
-
-    if [[ -n $pkey ]] && [[ -n $rport ]]
+    if [[ -n $pkey ]]
     then
-	[[ "$rport" =~ [0-9]+ ]] || 
-	{
-	    echo invalid port >&2
-	    return
-	}
-
 	if [[ ! $(base64 -d <<<"$pkey" 2>/dev/null |wc -c) -eq 32 ]]
 	then
 	    echo "invalid public key" >&2
@@ -198,7 +187,7 @@ handle_connection() {
 
 	remote_ip=0.0.0.0
 	[[ "$family" == "6" ]] && remote_ip="::"
-	[[ $success == "1" ]] && add_interface $ifname $port $pkey $rport $remote_ip
+	[[ $success == "1" ]] && add_interface $ifname $port $pkey
 	echo "$response"
     fi
 }
