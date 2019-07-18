@@ -9,7 +9,7 @@ declare -A INACTIVE
 
 if [[ -z $WAN ]] || [[ -z $MAXCONNECTIONS ]] || [[ -z $BROKERPORT ]] ||
    [[ -z $STARTPORT ]] || [[ -z $ENDPORT ]] || [[ -z $BABELPORT ]] || [[ -z $WG ]]
-   [[ -z $MTU ]] || [[ -z $PRIVATEKEY ]] || [[ -z $L3ROAMDSOCK ]]
+   [[ -z $MTU ]] || [[ -z $PRIVATEKEY ]] || [[ -z $L3ROAMDSOCK ]] || [[ -z  $MMFDSOCK ]]
 then
   if [[ -f /etc/wg-broker/config ]]; then
     . /etc/wg-broker/config
@@ -94,6 +94,7 @@ add_interface() {
     # iptables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
     ip link set up dev $newdevice
     echo add_meshif "$1" | socat - unix:$L3ROAMDSOCK
+    echo add_meshif "$1" | socat - unix:$MMFDSOCK
     echo interface $newdevice | timeout 0.2 nc ::1 $BABELPORT >/dev/null
 }
 
@@ -101,6 +102,7 @@ del_interface() {
   ip link show "$1" >/dev/null 2>&1 && 
   {
     echo del_meshif "$1" | socat - unix:$L3ROAMDSOCK
+    echo del_meshif "$1" | socat - unix:$MMFDSOCK
     echo flush interface $1 | timeout 0.2 nc ::1 $BABELPORT
     ip link del "$1"
   } >&2
