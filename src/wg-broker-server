@@ -60,7 +60,7 @@ find_free_port() {
     local port=$((STARTPORT + $RANDOM%1000)) # adding RANDOM to  not assign ports sequentially and save some time in below loop
     local sport=$port #
 
-    while $(port_is_assigned $port)
+    while port_is_assigned $port
     do
 	port=$((port+1))
 	[[ $port -eq $ENDPORT ]] && port=$STARTPORT
@@ -78,8 +78,6 @@ add_interface() {
     local newdevice="$1"
     local freeport="$2"
     local public_key="$3"
-    local rport="$4"
-    local remoteip="$5"
 
     unset INACTIVE[$newdevice]
 
@@ -88,7 +86,7 @@ add_interface() {
     devicenumber=${ifname##*-}
     ip a a fe80::$devicenumber/64 dev $newdevice
 
-    $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key endpoint $remoteip:$rport allowed-ips ::/0
+    $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key allowed-ips ::/0
     # ip6tables -A INPUT -i $newdevice -p udp --dport 6696 -j ACCEPT
     # ip6tables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
     # iptables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
@@ -151,20 +149,11 @@ find_if() {
 handle_connection() {
     family=$1
     read -r REPLY
-    echo read from client: $REPLY >&2
-    jq -r ".localport" <<< "$REPLY" >/dev/null 2>&1 || return 1
+
     local pkey=$(jq -r ".pubkey" <<<"$REPLY")
 
-    local rport=$(jq -r ".localport" <<< "$REPLY")
-
-    if [[ -n $pkey ]] && [[ -n $rport ]]
+    if [[ -n $pkey ]]
     then
-	[[ "$rport" =~ [0-9]+ ]] || 
-	{
-	    echo invalid port >&2
-	    return
-	}
-
 	if [[ ! $(base64 -d <<<"$pkey" 2>/dev/null |wc -c) -eq 32 ]]
 	then
 	    echo "invalid public key" >&2
@@ -182,7 +171,7 @@ handle_connection() {
 	    fi
 	    ifname=$(nic_namegen)
 	else
-	    port=$(wg show $ifname listen-port)
+	    port=$(wg show "$ifname" listen-port)
 	fi
 
 	success=0
@@ -190,16 +179,14 @@ handle_connection() {
 	then
 	    response="{\"version\":1, \"error\": { \"code\":1, \"reason\": \"Server is not accepting additional connections\"} }"
 	else
-	    response="{\"version\":1, \"port\": $port, \"time\": $(date +%s)}"
+	    response="{\"version\":1, \"port\": $port, \"time\": $(date +%s, \"remote\": \"gw01.babel.md.freifunk.net\")}"
 	    success=1
 	fi
 
 	echo "working on $ifname, write to client: $response"  >&2
-	del_interface $ifname
+	del_interface "$ifname"
 
-	remote_ip=0.0.0.0
-	[[ "$family" == "6" ]] && remote_ip="::"
-	[[ $success == "1" ]] && add_interface $ifname $port $pkey $rport $remote_ip
+	[[ "$success" == "1" ]] && add_interface "$ifname" "$port" "$pkey"
 	echo "$response"
     fi
 }
@@ -217,7 +204,7 @@ allow_udp_on_wg_interfaces() {
 iptables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || iptables -A INPUT -i $WAN -p tcp --dport $BROKERPORT -j ACCEPT
 ip6tables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || ip6tables -A INPUT -i $WAN -p tcp --dport $BROKERPORT -j ACCEPT
 iptables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || iptables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
-ip6tables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || ip6tables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
+ip6tables -nL -v|grep udp |grep ${WAN}|grep $STARTPORT:$ENDPORT -q || ip6tables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
 
 # allow babeld, l3roamd and mmfd on wireguard interfaces
 allow_udp_on_wg_interfaces 5523
@@ -228,14 +215,14 @@ rm -f /tmp/wg-broker4
 mkfifo /tmp/wg-broker4
 rm -f /tmp/wg-broker6
 mkfifo /tmp/wg-broker6
-rm -f /var/lock/${0##*/}
+rm -f "/var/lock/${0##*/}"
 
 {
     while [[ -z $EXITING ]]
     do
 	for i in $(get_wg_interfaces)
 	do
-	    prune_ifs $i
+	    prune_ifs "$i"
 	done
 	sleep 300
     done
