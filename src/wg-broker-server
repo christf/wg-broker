@@ -167,7 +167,7 @@ handle_connection() {
 	    port=$(find_free_port)
 	    if [[ $port -eq 0 ]]
 	    then
-	      echo "NOT handling the current connection - the server is full." >&2
+	      echo "NOT handling the current connection - Unable to find unused port within limits." >&2
 	    fi
 	    ifname=$(nic_namegen)
 	else
@@ -177,13 +177,13 @@ handle_connection() {
 	success=0
 	if [[ $port -eq 0 ]] || [[ $(get_connection_count) -gt $MAXCONNECTIONS ]]
 	then
-	    response="{\"version\":1, \"error\": { \"code\":1, \"reason\": \"Server is not accepting additional connections\"} }"
+	    response="{\"version\":1, \"error\": { \"code\":1, \"reason\":  \"Remote peer is not accepting additional connections\"} }"
 	else
 	    response="{\"version\":1, \"port\": $port, \"time\": $(date +%s), \"remote\": \"$(hostname)\"}"
 	    success=1
 	fi
 
-	echo "working on $ifname, write to client: $response"  >&2
+	echo "working on $ifname, write to peer: $response" >&2
 	del_interface "$ifname"
 
 	[[ "$success" == "1" ]] && add_interface "$ifname" "$port" "$pkey"
