@@ -179,7 +179,7 @@ handle_connection() {
 	then
 	    response="{\"version\":1, \"error\": { \"code\":1, \"reason\":  \"Remote peer is not accepting additional connections\"} }"
 	else
-	    response="{\"version\":1, \"port\": $port, \"time\": $(date +%s), \"remote\": \"$(hostname)\"}"
+	    response="{\"version\":1, \"port\": $port, \"time\": $(date +%s) }"
 	    success=1
 	fi
 
