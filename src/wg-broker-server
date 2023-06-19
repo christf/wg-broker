@@ -4,11 +4,12 @@
 # Copyright (C) Christof Schulze <christof@christofschulze.com>. All Rights Reserved.
 #
 nic_basename="babel-wg-"
+nic_name="babel-wg"
 
 declare -A INACTIVE
 
 if [[ -z $WAN ]] || [[ -z $MAXCONNECTIONS ]] || [[ -z $BROKERPORT ]] ||
-   [[ -z $STARTPORT ]] || [[ -z $ENDPORT ]] || [[ -z $BABELPORT ]] || [[ -z $WG ]]
+   [[ -z $WIREGUARDPORT ]] || [[ -z $BABELPORT ]] || [[ -z $WG ]]
    [[ -z $MTU ]] || [[ -z $PRIVATEKEY ]] || [[ -z $L3ROAMDSOCK ]] || [[ -z  $MMFDSOCK ]]
 then
   if [[ -f /etc/wg-broker/config ]]; then
@@ -30,17 +31,15 @@ set -x
 cleanup() {
   EXITING=true
   rm -f /tmp/wg-broker
-  for i in $(get_wg_interfaces)
-  do
-    del_interface ${i}
-  done
+  del_interface ${nic_name}
   exit 0
 }
 
 trap cleanup exit
 
 get_wg_interfaces() {
-    $WG show interfaces |sed 's/ /\n/g'|grep "${nic_basename}"
+    # $WG show interfaces |sed 's/ /\n/g'|grep "${nic_basename}"
+    $WG show ${nic_name}
 }
 
 get_connection_count() {
@@ -48,31 +47,32 @@ get_connection_count() {
     echo ${#interface[@]}
 }
 
-get_port() {
-    $WG show ${1:-all} listen-port
-}
+# get_port() {
+#     $WG show ${1:-all} listen-port
 
-port_is_assigned() {
-    get_port | grep -q "$1"
-}
+# }
 
-find_free_port() {
-    local port=$((STARTPORT + $RANDOM%1000)) # adding RANDOM to  not assign ports sequentially and save some time in below loop
-    local sport=$port #
+# port_is_assigned() {
+#     get_port | grep -q "$1"
+# }
 
-    while port_is_assigned $port
-    do
-	port=$((port+1))
-	[[ $port -eq $ENDPORT ]] && port=$STARTPORT
-	[[ $port -eq $sport ]] &&
-	{
-	  echo 0
-	  return
-	}
-    done
+# find_free_port() {
+#     local port=$((STARTPORT + $RANDOM%1000)) # adding RANDOM to  not assign ports sequentially and save some time in below loop
+#     local sport=$port #
 
-    echo $port
-}
+#     while port_is_assigned $port
+#     do
+# 	port=$((port+1))
+# 	[[ $port -eq $ENDPORT ]] && port=$STARTPORT
+# 	[[ $port -eq $sport ]] &&
+# 	{
+# 	  echo 0
+# 	  return
+# 	}
+#     done
+
+#     echo $port
+# }
 
 add_interface() {
     local newdevice="$1"
@@ -96,6 +96,15 @@ add_interface() {
     echo interface $newdevice | timeout 0.2 nc ::1 $BABELPORT >/dev/null
 }
 
+add_peer() {
+    local newdevice="$1"
+    local freeport="$2"
+    local public_key="$3"
+    unset INACTIVE[$public_key]
+
+    $WG set $newdevice private-key $PRIVATEKEY listen-port $WIREGUARDPORT peer $public_key allowed-ips ::/0
+}
+
 del_interface() {
   ip link show "$1" >/dev/null 2>&1 && 
   {
@@ -106,15 +115,15 @@ del_interface() {
   } >&2
 }
 
-nic_namegen() {
-    local number=1
+# nic_namegen() {
+#     local number=1
 
-    while $(get_wg_interfaces|grep -q "${nic_basename}$number")
-    do
-	((number+=1))
-    done
-    echo "${nic_basename}$number"
-}
+#     while $(get_wg_interfaces|grep -q "${nic_basename}$number")
+#     do
+# 	((number+=1))
+#     done
+#     echo "${nic_basename}$number"
+# }
 
 prune_ifs() {
     local interface="$1"
@@ -130,6 +139,20 @@ prune_ifs() {
     elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$interface]} ]]
     then
 	    INACTIVE[$interface]=1
+    fi
+}
+
+prune_peers() {
+    local peer="$1"
+    lhandshake=$($WG show ${nic_name} latest-handshakes|awk '{print $2}')
+    age=$(($(date +%s)-lhandshake))
+    if  (( (lhandshake > 0 && age > 600) || (lhandshake == 0 && "${INACTIVE[$peer]:-0}" == 1) ))
+    then
+	del_peer $peer
+	return
+    elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$peer]} ]]
+    then
+	    INACTIVE[$peer]=1
     fi
 }
 
@@ -169,7 +192,7 @@ handle_connection() {
 	    then
 	      echo "NOT handling the current connection - Unable to find unused port within limits." >&2
 	    fi
-	    ifname=$(nic_namegen)
+	    ifname=${nic_name}
 	else
 	    port=$(wg show "$ifname" listen-port)
 	fi
@@ -193,18 +216,16 @@ handle_connection() {
 
 allow_udp_on_wg_interfaces() {
   local port=$1
-  nics=$(nic_namegen)
-  nicbase=${nics%%-[0-9]*}
-  ip6tables -nL -v| grep udp | grep $nicbase | grep $port | grep -q ACCEPT || \
-  ip6tables -I INPUT 1 -i ${nicbase}+ -p udp --dport $port -j ACCEPT
+  ip6tables -nL -v| grep udp | grep ${nic_name} | grep $port | grep -q ACCEPT || \
+  ip6tables -I INPUT 1 -i ${nic_name} -p udp --dport $port -j ACCEPT
 }
 
 
 # TODO prettify this
 iptables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || iptables -A INPUT -i $WAN -p tcp --dport $BROKERPORT -j ACCEPT
 ip6tables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || ip6tables -A INPUT -i $WAN -p tcp --dport $BROKERPORT -j ACCEPT
-iptables -nL -v|grep udp |grep $WAN|grep $STARTPORT:$ENDPORT -q || iptables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
-ip6tables -nL -v|grep udp |grep ${WAN}|grep $STARTPORT:$ENDPORT -q || ip6tables -A INPUT -i $WAN -p udp -m multiport --dports $STARTPORT:$ENDPORT -j ACCEPT
+iptables -nL -v|grep udp |grep $WAN|grep $WIREGUARDPORT -q || iptables -A INPUT -i $WAN -p udp -m multiport --dports $WIREGUARDPORT -j ACCEPT
+ip6tables -nL -v|grep udp |grep ${WAN}|grep $WIREGUARDPORT -q || ip6tables -A INPUT -i $WAN -p udp -m multiport --dports $WIREGUARDPORT -j ACCEPT
 
 # allow babeld, l3roamd and mmfd on wireguard interfaces
 allow_udp_on_wg_interfaces 5523
@@ -220,10 +241,7 @@ rm -f "/var/lock/${0##*/}"
 {
     while [[ -z $EXITING ]]
     do
-	for i in $(get_wg_interfaces)
-	do
-	    prune_ifs "$i"
-	done
+    prune_ifs ${nic_name}
 	sleep 300
     done
 } &
