@@ -42,6 +42,7 @@ get_wg_interfaces() {
     $WG show ${nic_name}
 }
 
+# TODO count peers on wireguard interface instead
 get_connection_count() {
     interfaces=( $(get_wg_interfaces) )
     echo ${#interface[@]}
@@ -115,6 +116,11 @@ del_interface() {
   } >&2
 }
 
+del_peer () {
+    local peer="$1"
+    $WG ${nic_name} set peer $peer remove 
+}
+
 # nic_namegen() {
 #     local number=1
 
@@ -142,6 +148,7 @@ prune_ifs() {
     fi
 }
 
+# TODO needs some more work, list peers, remove inactive
 prune_peers() {
     local peer="$1"
     lhandshake=$($WG show ${nic_name} latest-handshakes|awk '{print $2}')
@@ -158,15 +165,11 @@ prune_peers() {
 
 find_if() {
     local peer="$1"
-
-    for i in $(get_wg_interfaces)
-    do
-	if wg show $i peers |grep -q $peer
+	if wg show ${nic_name} peers |grep -q $peer
 	then
-	    echo $i
+	    echo ${nic_name}
 	    return
 	fi
-    done
 }
 
 handle_connection() {
@@ -187,18 +190,11 @@ handle_connection() {
 
 	if [[ -z $ifname ]]
 	then
-	    port=$(find_free_port)
-	    if [[ $port -eq 0 ]]
-	    then
-	      echo "NOT handling the current connection - Unable to find unused port within limits." >&2
-	    fi
-	    ifname=${nic_name}
-	else
-	    port=$(wg show "$ifname" listen-port)
+	    port=$(wg show "${nic_name}" listen-port)
 	fi
 
 	success=0
-	if [[ $port -eq 0 ]] || [[ $(get_connection_count) -gt $MAXCONNECTIONS ]]
+	[[ $(get_connection_count) -gt $MAXCONNECTIONS ]]
 	then
 	    response="{\"version\":1, \"error\": { \"code\":1, \"reason\":  \"Remote peer is not accepting additional connections\"} }"
 	else
@@ -207,9 +203,9 @@ handle_connection() {
 	fi
 
 	echo "working on $ifname, write to peer: $response" >&2
-	del_interface "$ifname"
+	# del_interface "$ifname"
 
-	[[ "$success" == "1" ]] && add_interface "$ifname" "$port" "$pkey"
+	[[ "$success" == "1" ]] && add_peer "$ifname" "$port" "$pkey"
 	echo "$response"
     fi
 }
