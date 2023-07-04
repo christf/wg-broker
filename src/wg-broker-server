@@ -37,43 +37,14 @@ cleanup() {
 
 trap cleanup exit
 
-get_wg_interfaces() {
-    # $WG show interfaces |sed 's/ /\n/g'|grep "${nic_basename}"
-    $WG show ${nic_name}
+get_wg_peers() {
+    $WG show ${nic_name} | grep peer |sed 's/peer://g' | tr '\n' ' '
 }
 
-# TODO count peers on wireguard interface instead
 get_connection_count() {
-    interfaces=( $(get_wg_interfaces) )
-    echo ${#interface[@]}
+    peers=( $(get_wg_peers) )
+    echo ${#peers[@]}
 }
-
-# get_port() {
-#     $WG show ${1:-all} listen-port
-
-# }
-
-# port_is_assigned() {
-#     get_port | grep -q "$1"
-# }
-
-# find_free_port() {
-#     local port=$((STARTPORT + $RANDOM%1000)) # adding RANDOM to  not assign ports sequentially and save some time in below loop
-#     local sport=$port #
-
-#     while port_is_assigned $port
-#     do
-# 	port=$((port+1))
-# 	[[ $port -eq $ENDPORT ]] && port=$STARTPORT
-# 	[[ $port -eq $sport ]] &&
-# 	{
-# 	  echo 0
-# 	  return
-# 	}
-#     done
-
-#     echo $port
-# }
 
 add_interface() {
     local newdevice="$1"
@@ -87,7 +58,6 @@ add_interface() {
     devicenumber=${ifname##*-}
     ip a a fe80::$devicenumber/64 dev $newdevice
 
-    $WG set $newdevice private-key $PRIVATEKEY listen-port $freeport peer $public_key allowed-ips ::/0
     # ip6tables -A INPUT -i $newdevice -p udp --dport 6696 -j ACCEPT
     # ip6tables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
     # iptables -A INPUT -i $WAN -p udp --dport $freeport -j ACCEPT
@@ -119,33 +89,6 @@ del_interface() {
 del_peer () {
     local peer="$1"
     $WG ${nic_name} set peer $peer remove 
-}
-
-# nic_namegen() {
-#     local number=1
-
-#     while $(get_wg_interfaces|grep -q "${nic_basename}$number")
-#     do
-# 	((number+=1))
-#     done
-#     echo "${nic_basename}$number"
-# }
-
-prune_ifs() {
-    local interface="$1"
-
-    # delete interface if its peers last_handshake is > 10 Minutes ago
-    lhandshake=$($WG show $interface latest-handshakes|awk '{print $2}')
-    age=$(($(date +%s)-lhandshake))
-
-    if  (( (lhandshake > 0 && age > 600) || (lhandshake == 0 && "${INACTIVE[$interface]:-0}" == 1) ))
-    then
-	del_interface $interface
-	return
-    elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$interface]} ]]
-    then
-	    INACTIVE[$interface]=1
-    fi
 }
 
 # TODO needs some more work, list peers, remove inactive
