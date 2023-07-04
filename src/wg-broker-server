@@ -120,7 +120,6 @@ handle_connection() {
 
 	ifname=${nic_name}
     port=${WIREGUARDPORT}
-	if [[ -z $ifname ]]
 
 	success=0
 	[[ $(get_connection_count) -gt $MAXCONNECTIONS ]]
