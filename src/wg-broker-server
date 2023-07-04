@@ -93,17 +93,21 @@ del_peer () {
 
 # TODO needs some more work, list peers, remove inactive
 prune_peers() {
-    local peer="$1"
-    lhandshake=$($WG show ${nic_name} latest-handshakes|awk '{print $2}')
-    age=$(($(date +%s)-lhandshake))
-    if  (( (lhandshake > 0 && age > 600) || (lhandshake == 0 && "${INACTIVE[$peer]:-0}" == 1) ))
-    then
-	del_peer $peer
-	return
-    elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$peer]} ]]
-    then
-	    INACTIVE[$peer]=1
-    fi
+    local lines=$WG show ${nic_name} latest-handshakes
+    for line in "${lines[@]}"; do
+        read -a strarr <<< "$line"
+        peer="${strarr[0]}"
+        lhandshake="${strarr[1]}"
+        age=$(($(date +%s)-lhandshake))
+        if  (( (lhandshake > 0 && age > 600) || (lhandshake == 0 && "${INACTIVE[$peer]:-0}" == 1) ))
+        then
+        del_peer $peer
+        return
+        elif [[ $((lhandshake)) -eq 0 ]] && [[ -z ${INACTIVE[$peer]} ]]
+        then
+            INACTIVE[$peer]=1
+        fi
+    done
 }
 
 find_if() {
@@ -180,7 +184,7 @@ rm -f "/var/lock/${0##*/}"
 {
     while [[ -z $EXITING ]]
     do
-    prune_ifs ${nic_name}
+    prune_peers
 	sleep 300
     done
 } &
