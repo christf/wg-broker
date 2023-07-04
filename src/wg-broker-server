@@ -91,7 +91,6 @@ del_peer () {
     $WG ${nic_name} set peer $peer remove 
 }
 
-# TODO needs some more work, list peers, remove inactive
 prune_peers() {
     local lines=$WG show ${nic_name} latest-handshakes
     for line in "${lines[@]}"; do
@@ -110,15 +109,6 @@ prune_peers() {
     done
 }
 
-find_if() {
-    local peer="$1"
-	if wg show ${nic_name} peers |grep -q $peer
-	then
-	    echo ${nic_name}
-	    return
-	fi
-}
-
 handle_connection() {
     family=$1
     read -r REPLY
@@ -133,12 +123,9 @@ handle_connection() {
 	    return
 	fi
 
-	ifname=$(find_if $pkey)
-
+	ifname=${nic_name}
+    port=${WIREGUARDPORT}
 	if [[ -z $ifname ]]
-	then
-	    port=$(wg show "${nic_name}" listen-port)
-	fi
 
 	success=0
 	[[ $(get_connection_count) -gt $MAXCONNECTIONS ]]
