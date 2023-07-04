@@ -1,6 +1,5 @@
 BROKERPORT=40000	# tcp port where the broker listens for connections
-STARTPORT=40000		# start of udp portrange accepting wireguard connections
-ENDPORT=41000		# end of udp portrange accepting wireguard connections
+WIREGUARDPORT=40001 # udp port accepting wireguard connections
 BABELPORT=33123		# control port of local babeld
 MTU=1374		# MTU of VPN in this network
 WG="wg"			# wireguard command
@@ -9,5 +8,3 @@ MAXCONNECTIONS=150	# allow MAXCONNECTIONS concurrent vpn connections
 PRIVATEKEY=/etc/wg-broker/secret	# this file contains the secret key
 L3ROAMDSOCK=/var/run/l3roamd.sock	# this is the l3roamd socket
 MMFDSOCK=/var/run/mmfd.sock		# this is the mmfd socket
-
-
