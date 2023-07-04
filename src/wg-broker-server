@@ -3,7 +3,6 @@
 #
 # Copyright (C) Christof Schulze <christof@christofschulze.com>. All Rights Reserved.
 #
-nic_basename="babel-wg-"
 nic_name="babel-wg"
 
 declare -A INACTIVE
@@ -47,9 +46,7 @@ get_connection_count() {
 }
 
 add_interface() {
-    local newdevice="$1"
-    local freeport="$2"
-    local public_key="$3"
+    local newdevice="${nic_name}"
 
     unset INACTIVE[$newdevice]
 
@@ -68,12 +65,10 @@ add_interface() {
 }
 
 add_peer() {
-    local newdevice="$1"
-    local freeport="$2"
-    local public_key="$3"
+    local public_key="$1"
     unset INACTIVE[$public_key]
 
-    $WG set $newdevice private-key $PRIVATEKEY listen-port $WIREGUARDPORT peer $public_key allowed-ips ::/0
+    $WG set ${nic_name} private-key $PRIVATEKEY listen-port $WIREGUARDPORT peer $public_key allowed-ips ::/0
 }
 
 del_interface() {
@@ -139,7 +134,7 @@ handle_connection() {
 	echo "working on $ifname, write to peer: $response" >&2
 	# del_interface "$ifname"
 
-	[[ "$success" == "1" ]] && add_peer "$ifname" "$port" "$pkey"
+	[[ "$success" == "1" ]] && add_peer "$pkey"
 	echo "$response"
     fi
 }
@@ -150,6 +145,8 @@ allow_udp_on_wg_interfaces() {
   ip6tables -I INPUT 1 -i ${nic_name} -p udp --dport $port -j ACCEPT
 }
 
+# TODO is this the right place to initialize the wg interface?
+add_interface
 
 # TODO prettify this
 iptables -nL -v|grep dpt:$BROKERPORT|grep tcp|grep $WAN |grep -q ACCEPT || iptables -A INPUT -i $WAN -p tcp --dport $BROKERPORT -j ACCEPT
@@ -169,11 +166,11 @@ mkfifo /tmp/wg-broker6
 rm -f "/var/lock/${0##*/}"
 
 {
-    while [[ -z $EXITING ]]
-    do
+while [[ -z $EXITING ]]
+do
     prune_peers
-	sleep 300
-    done
+    sleep 300
+done
 } &
 
 {
